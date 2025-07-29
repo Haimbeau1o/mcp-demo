@@ -1,0 +1,227 @@
+
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP文件浏览助手</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 90vh;
+        }
+        .chat-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            margin-bottom: 15px;
+            background: #f9f9f9;
+        }
+        .input-container {
+            display: flex;
+            gap: 10px;
+        }
+        #user-input {
+            flex-grow: 1;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        button {
+            padding: 10px 15px;
+            background: #4a69bd;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #1e3799;
+        }
+        .message {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .user {
+            background: #d6eaff;
+            margin-left: 20%;
+            margin-right: 0;
+        }
+        .assistant {
+            background: #e6e6e6;
+            margin-right: 20%;
+            margin-left: 0;
+        }
+        .system {
+            background: #ffeecc;
+            margin: 5px 10%;
+            font-style: italic;
+            text-align: center;
+        }
+        .tool-call {
+            background: #e0f7fa;
+            border-left: 3px solid #00acc1;
+            padding-left: 10px;
+            margin: 5px 0;
+        }
+        pre {
+            background: #f1f1f1;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .status-bar {
+            margin-top: 10px;
+            padding: 5px;
+            border-radius: 3px;
+            background: #f0f0f0;
+            font-size: 0.9em;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <h1>MCP文件浏览助手</h1>
+    <div class="status-bar" id="status">
+        服务器状态：准备中...
+    </div>
+    <div class="container">
+        <div class="chat-container" id="chat-container">
+            <div class="message system">系统已启动，请输入您的问题</div>
+        </div>
+        <div class="input-container">
+            <input type="text" id="user-input" placeholder="输入您的问题，如'查找当前目录下的Python文件'" />
+            <button onclick="sendMessage()">发送</button>
+        </div>
+    </div>
+
+    <script>
+        const chatContainer = document.getElementById('chat-container');
+        const userInput = document.getElementById('user-input');
+        const statusBar = document.getElementById('status');
+
+        function addMessage(text, sender) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', sender);
+            
+            // 检查是否包含代码块
+            if (text.includes('```')) {
+                const parts = text.split(/```([\s\S]*?)```/);
+                let content = '';
+                
+                for (let i = 0; i < parts.length; i++) {
+                    if (i % 2 === 0) {
+                        // 普通文本
+                        content += parts[i];
+                    } else {
+                        // 代码块
+                        content += `<pre><code>${parts[i]}</code></pre>`;
+                    }
+                }
+                messageDiv.innerHTML = content;
+            } else {
+                messageDiv.textContent = text;
+            }
+            
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function addToolCall(toolName, args, result) {
+            const toolDiv = document.createElement('div');
+            toolDiv.classList.add('tool-call');
+            toolDiv.innerHTML = `
+                <strong>调用工具:</strong> ${toolName}<br>
+                <strong>参数:</strong> <pre>${JSON.stringify(args, null, 2)}</pre>
+                <strong>结果:</strong><br>${result.replace(/\n/g, '<br>')}
+            `;
+            chatContainer.appendChild(toolDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function updateStatus(status) {
+            statusBar.textContent = `服务器状态：${status}`;
+        }
+
+        function sendMessage() {
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            // 添加用户消息到界面
+            addMessage(message, 'user');
+            userInput.value = '';
+            
+            // 显示加载状态
+            updateStatus('处理中...');
+            
+            // 发送到服务器
+            fetch('/api/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ message }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                // 显示工具调用（如果有）
+                if (data.tool_calls && data.tool_calls.length > 0) {
+                    for (const tool of data.tool_calls) {
+                        addToolCall(tool.name, tool.args, tool.result);
+                    }
+                }
+                
+                // 添加助手回复
+                if (data.response) {
+                    addMessage(data.response, 'assistant');
+                }
+                
+                // 更新状态
+                updateStatus('就绪');
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                addMessage('发生错误: ' + error.message, 'system');
+                updateStatus('错误');
+            });
+        }
+        
+        // 按Enter发送消息
+        userInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // 页面加载时连接服务器
+        window.onload = function() {
+            fetch('/api/connect')
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    updateStatus('已连接');
+                    addMessage(`已连接到MCP服务器。可用工具: ${data.tools.join(', ')}`, 'system');
+                } else {
+                    updateStatus('连接失败');
+                    addMessage(`连接服务器失败: ${data.error}`, 'system');
+                }
+            })
+            .catch(error => {
+                updateStatus('连接错误');
+                addMessage(`连接错误: ${error.message}`, 'system');
+            });
+        };
+    </script>
+</body>
+</html>

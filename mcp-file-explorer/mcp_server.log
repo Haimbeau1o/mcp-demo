@@ -1,0 +1,6 @@
+2025-07-29 11:42:02,282 - mcp.server.lowlevel.server - DEBUG - Initializing server 'file-explorer'
+2025-07-29 11:42:02,395 - mcp.server.lowlevel.server - DEBUG - Registering handler for ListToolsRequest
+2025-07-29 11:42:02,395 - mcp.server.lowlevel.server - DEBUG - Registering handler for ListResourcesRequest
+2025-07-29 11:42:02,395 - mcp.server.lowlevel.server - DEBUG - Registering handler for ReadResourceRequest
+2025-07-29 11:42:02,395 - mcp.server.lowlevel.server - DEBUG - Registering handler for CallToolRequest
+2025-07-29 11:42:02,396 - asyncio - DEBUG - Using selector: KqueueSelector
